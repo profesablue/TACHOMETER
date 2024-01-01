@@ -1,0 +1,199 @@
+;;====================================================================
+; Main.asm file for PIC16F84A Tachometer
+; Created:   Wed Dec 27 2023
+; Processor: PIC16F84A
+; Compiler:  MPASM (MPLAB)
+;====================================================================
+
+;====================================================================
+; DEFINITIONS
+;====================================================================
+
+#include p16f84a.inc    ; Include register definition file
+
+; Define constants
+DIPSW_PORT  equ 0x0A    ; Port for DIP switch
+FAN_DC_PORT equ 0x0B    ; Port for controlling the fan
+LM016L_PORT equ 0x0C    ; Port for LCD (LM016L)
+TC77_SIM    equ 0x0D    ; Port for simulating TC77 sensor
+BUZZER_PORT equ 0x0E    ; Port for the buzzer
+PUSH1       equ 0x01    ; Push button 1
+PUSH2       equ 0x02    ; Push button 2
+IR_SENSOR   equ 0x03    ; IR sensor input pin
+
+; Define constants for DIP switch positions
+DIPSW_00    equ 0b00
+DIPSW_01    equ 0b01
+DIPSW_10    equ 0b10
+DIPSW_11    equ 0b11
+
+; Define constants for threshold values
+THRESHOLD_63  equ 63
+THRESHOLD_127 equ 127
+THRESHOLD_191 equ 191
+THRESHOLD_255 equ 255
+
+; Define constants for speed percentages
+SPEED_25  equ 25
+SPEED_50  equ 50
+SPEED_75  equ 75
+SPEED_100 equ 100
+
+;====================================================================
+; VARIABLES
+;====================================================================
+
+count       equ 0x20   ; Variable to store the count
+rpm         equ 0x21   ; Variable to store RPM value
+blade_count equ 0x22   ; Variable to store the number of blades
+distance    equ 0x23   ; Variable to store the distance from IR sensor
+threshold   equ 0x24   ; Variable to store the selected threshold
+speed       equ 0x25   ; Variable to store the selected speed percentage
+
+;====================================================================
+; RESET and INTERRUPT VECTORS
+;====================================================================
+
+; Reset Vector
+RST code 0x0
+    goto Start
+
+;====================================================================
+; CODE SEGMENT
+;====================================================================
+
+PGM code
+
+Start
+    ; Initialize ports and variables
+    clrf  PORTA      ; Clear all PORTA pins
+    clrf  PORTB      ; Clear all PORTB pins
+    clrf  PORTC      ; Clear all PORTC pins
+    bsf   STATUS, RP0 ; Select bank 1
+    movlw b'00001111' ; Set PORTA pins as digital inputs
+    movwf TRISA      ; Set TRISA register
+    movlw b'00000000' ; Set PORTB pins as digital outputs
+    movwf TRISB      ; Set TRISB register
+    movlw b'00000000' ; Set PORTC pins as digital outputs
+    movwf TRISC      ; Set TRISC register
+    bcf   STATUS, RP0 ; Select bank 0
+    clrf  count       ; Clear count
+    clrf  rpm         ; Clear rpm
+    clrf  blade_count ; Clear blade_count
+    clrf  distance    ; Clear distance
+    clrf  threshold   ; Clear threshold
+    clrf  speed       ; Clear speed
+
+Loop
+    ; Read DIP switch position
+    bsf   PORTA, DIPSW_00 ; Pull-up resistor for DIP switch
+    btfsc PORTA, DIPSW_00 ; Check DIP switch bit 0
+    goto  DIPSW_01_SELECTED
+    btfsc PORTA, DIPSW_01 ; Check DIP switch bit 1
+    goto  DIPSW_10_SELECTED
+    goto  DIPSW_00_SELECTED
+
+DIPSW_00_SELECTED
+    movlw THRESHOLD_63  ; Set threshold value
+    movwf threshold
+    movlw SPEED_25      ; Set speed percentage
+    movwf speed
+    goto  Check_IR
+
+DIPSW_01_SELECTED
+    movlw THRESHOLD_127 ; Set threshold value
+    movwf threshold
+    movlw SPEED_50      ; Set speed percentage
+    movwf speed
+    goto  Check_IR
+
+DIPSW_10_SELECTED
+    movlw THRESHOLD_191 ; Set threshold value
+    movwf threshold
+    movlw SPEED_75      ; Set speed percentage
+    movwf speed
+    goto  Check_IR
+
+DIPSW_11_SELECTED
+    movlw THRESHOLD_255 ; Set threshold value
+    movwf threshold
+    movlw SPEED_100     ; Set speed percentage
+    movwf speed
+
+Check_IR
+    ; Read IR sensor input
+    btfss PORTA, IR_SENSOR ; Check IR sensor input
+    goto  IR_NOT_DETECTED
+    incf  blade_count, F  ; Increment blade count
+    goto  IR_DETECTED
+
+IR_NOT_DETECTED
+    ; IR sensor not detected, reset blade count
+    clrf  blade_count
+
+IR_DETECTED
+    ; Calculate RPM
+    movf  blade_count, W
+    mulwf speed, W      ; Multiply by speed percentage
+    movwf rpm
+    movlw 12            ; Constant factor for RPM calculation
+    divwf rpm, F
+
+    ; Display RPM on LM016L
+; Initialize LCD
+Init_LCD:
+    ; Initialize LCD initialization sequence (e.g., set function, display, etc.)
+    ; This would depend on your specific LCD module.
+    ; Sending commands to configure the LCD.
+
+    return
+
+; Send a character to LCD
+lcd_send_byte:
+    ; Load the character/data into W
+    ; Send data to the LCD module (e.g., RS=1 for data, E=1 to enable, etc.)
+    ; Sending a character to the LCD.
+
+    return
+
+
+    ; Control the fan based on RPM
+; Set fan speed based on RPM
+set_fan_speed:
+    ; Load RPM value from rpm variable
+    ; Calculate the required fan speed control value (e.g., PWM duty cycle)
+    ; Set the fan speed control value using your hardware-specific method
+    ;Adjusting PWM duty cycle.
+
+    return
+
+
+    ; Simulate TC77 sensor
+; Simulate TC77 sensor and store data in a variable
+simulate_tc77:
+    ; Generate simulated temperature data (e.g., incrementing temperature values)
+    ; Store the simulated temperature data in a variable (e.g., TC77_SIM_DATA)
+
+    return
+
+
+    ; Sound the buzzer if RPM exceeds threshold
+    movf  rpm, W
+    subwf threshold, W
+    btfss STATUS, C
+    goto  RPM_BELOW_THRESHOLD
+    bsf   PORTB, BUZZER_PORT  ; Sound the buzzer
+    goto  RPM_ABOVE_THRESHOLD
+
+RPM_BELOW_THRESHOLD
+    bcf   PORTB, BUZZER_PORT  ; Turn off the buzzer
+
+RPM_ABOVE_THRESHOLD
+
+    ; Implement a delay (e.g., using a timer) to measure RPM at a certain interval (5 seconds)
+
+    ; Go back to the main loop
+    goto  Loop
+
+;====================================================================
+END
